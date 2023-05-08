@@ -28,14 +28,14 @@ class MyAI(AI):
         # how many uncovered block currently need to be flag
         self.flag = []
         # how many mines we already flagged
-        self.covered = rowDimension * colDimension
-        self.uncovered = 0
         self.flagged = 0
         # list of covered block that is yet unchecked but garateed to be safe
         self.safe_covered = []
         # a pair that stores the current block location
         self.current = (startX, startY)
         self.double_check = []
+        # bool value indicates we got all mines and need to finish up
+        self.finished = False
 
     def find_covered_neighbor(self, row, col) -> list:
         neighbors = []
@@ -91,41 +91,52 @@ class MyAI(AI):
             self.safe_covered = self.safe_covered[(found + 1):]
             return (row, col)
 
-    def double_check_algorithm(self) -> "Action Object":
-        for v in self.double_check:
-            x, y, num = v
+    def find_next_double_check(self) -> (int, int, int):
+        found = -1
+        for i in range(len(self.double_check)):
+            x, y, n = self.double_check[i]
             nb = self.find_covered_neighbor(x, y)
-            if (not nb):
-                continue
-            elif (len(nb) == num):
-                double_check = []
-                x, y = nb[0]
-                self.flag = self.flag + nb[1:]
-                return Action(AI.Action.FLAG, x, y)
+            if (len(nb) > 0):
+                found = i
+                self.double_check = self.double_check[(found + 1):]
+                return (x, y, n)
+
+        return (-1, -1, -1)
 
     def getAction(self, number: int) -> "Action Object":
         # update our map each turn
-        print(number)
         row, col = self.current
         self.map[row][col] = number
-        if (self.covered == self.flagged + self.uncovered):
-            return Action(AI.Action.LEAVE)
 
+        if (self.mines == self.flagged):
+            self.safe_covered = []
+            self.finished = True
+            for i in range(self.dimensions):
+                for j in range(self.dimensions):
+                    if (self.map[i][j] == "*"):
+                        self.safe_covered.append((i, j))
+
+        if (self.finished):
+            if (self.safe_covered):
+                x, y = self.safe_covered[0]
+                self.safe_covered = self.safe_covered[1:]
+                self.current = (x, y)
+                return Action(AI.Action.UNCOVER, x, y)
+            else:
+                return Action(AI.Action.LEAVE)
 
         # Rule of thumb algorithms
         else:
             neignbour = self.find_covered_neighbor(row, col)
             if (neignbour):
                 if (number == 0):
-                    self.safe_covered = self.safe_covered + neignbour
+                    self.safe_covered = neignbour + self.safe_covered
                 elif (number == len(neignbour)):
                     self.flag = self.flag + neignbour
                 elif (number > 0):
                     x, y = self.current
                     num = number
                     self.double_check.append((x, y, num))
-                elif (number == -1):
-                    self.safe_covered = self.safe_covered + neignbour
 
             if (self.flag):
                 x, y = self.flag[0]
@@ -138,13 +149,16 @@ class MyAI(AI):
                 x, y = self.find_next_covered()
                 if (x != -1):
                     self.current = (x, y)
-                    self.uncovered += 1
                     return Action(AI.Action.UNCOVER, x, y)
 
-            elif (self.double_check):
-                self.double_check_algorithm()
-            else:
-                return Action(AI.Action.LEAVE)
+            if (self.double_check):
+                x, y, num = self.find_next_double_check()
+                if (x != -1):
+                    self.current = (x, y)
+                    return self.getAction(num)
+
+            print("there is something wrong! (This should never been printed)")
+            return Action(AI.Action.LEAVE)
 
 
 
